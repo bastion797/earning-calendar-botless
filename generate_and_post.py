@@ -23,19 +23,27 @@ def next_monday_to_friday(today_utc: date):
 
 # ---------- Data fetching (replace these as you upgrade sources) ----------
 def fetch_earnings_fmp(start: date, end: date):
-    """
-    Returns a list of {symbol, date, time, name?, exchange?}
-    Note: FMP's earnings calendar fields can vary by endpoint/version.
-    You may need to adjust keys after you see real payloads.
-    """
     if not FMP_API_KEY:
-        return []  # no-key mode
+        print("No FMP_API_KEY found; returning empty earnings.")
+        return []
 
     url = "https://financialmodelingprep.com/api/v3/earning_calendar"
     params = {"from": start.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}
-    r = requests.get(url, params=params, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+
+    try:
+        r = requests.get(url, params=params, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+        r.raise_for_status()
+        data = r.json()
+    except requests.HTTPError as e:
+        # This prints the response status/text without leaking your key
+        status = getattr(e.response, "status_code", None)
+        text = (getattr(e.response, "text", "") or "")[:300]
+        print(f"FMP earnings request failed: HTTP {status} | {text}")
+        return []
+    except Exception as e:
+        print(f"FMP earnings request failed: {e}")
+        return []
+
     out = []
     for row in data:
         sym = row.get("symbol")
@@ -44,8 +52,8 @@ def fetch_earnings_fmp(start: date, end: date):
             continue
         out.append({
             "symbol": sym,
-            "date": d,  # "YYYY-MM-DD"
-            "time": row.get("time", ""),  # may be "bmo/amc" depending on provider
+            "date": d,
+            "time": row.get("time", ""),
             "name": row.get("company", row.get("companyName", "")),
         })
     return out
