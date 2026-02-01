@@ -268,7 +268,11 @@ def main():
     symbols = sorted(list({e["symbol"] for e in earnings}))
     market_caps = fetch_market_caps_fmp(symbols)
     macro = fetch_macro_events(monday, friday)
-
+	print(f"Date range: {monday} -> {friday}")
+	print(f"Earnings rows fetched: {len(earnings)}")
+	print(f"Unique symbols: {len(symbols)}")
+	print(f"Market caps fetched: {len(market_caps)}")
+	print(f"Macro events fetched: {len(macro)}")
     week_days = build_week(monday, friday, earnings, market_caps, macro)
     img = render_calendar_png(week_days, monday, friday)
 
