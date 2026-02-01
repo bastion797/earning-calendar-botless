@@ -27,15 +27,18 @@ def fetch_earnings_fmp(start: date, end: date):
         print("No FMP_API_KEY found; returning empty earnings.")
         return []
 
-    url = "https://financialmodelingprep.com/api/v3/earning_calendar"
-    params = {"from": start.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}
+    url = "https://financialmodelingprep.com/stable/earnings-calendar"
+    params = {
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "apikey": FMP_API_KEY,
+    }
 
     try:
         r = requests.get(url, params=params, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
         r.raise_for_status()
         data = r.json()
     except requests.HTTPError as e:
-        # This prints the response status/text without leaking your key
         status = getattr(e.response, "status_code", None)
         text = (getattr(e.response, "text", "") or "")[:300]
         print(f"FMP earnings request failed: HTTP {status} | {text}")
@@ -50,12 +53,15 @@ def fetch_earnings_fmp(start: date, end: date):
         d = row.get("date")
         if not sym or not d:
             continue
+
         out.append({
             "symbol": sym,
-            "date": d,
-            "time": row.get("time", ""),
-            "name": row.get("company", row.get("companyName", "")),
+            "date": d[:10],
+            "time": "",  # stable earnings-calendar doesn't provide BMO/AMC
+            "name": "",  # optional: can add later if you want company names
         })
+
+    print(f"Fetched {len(out)} earnings rows from FMP stable endpoint")
     return out
 
 def fetch_market_caps_fmp(symbols):
@@ -81,8 +87,18 @@ def fetch_market_caps_fmp(symbols):
         for row in rows:
             sym = row.get("symbol")
             cap = row.get("marketCap")
-            if sym and isinstance(cap, (int, float)):
-                mcap[sym] = int(cap)
+
+        cap_val = None
+        if isinstance(cap, (int, float)):
+            cap_val = int(cap)
+        elif isinstance(cap, str):
+            try:
+                cap_val = int(float(cap.replace(",", "")))
+            except ValueError:
+                cap_val = None
+
+        if sym and cap_val is not None:
+            mcap[sym] = cap_val
     return mcap
 
 def fetch_macro_events(start: date, end: date):
