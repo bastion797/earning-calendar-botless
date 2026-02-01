@@ -1,0 +1,28 @@
+name: Weekly Earnings Calendar
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"  # 00:00 UTC Monday == 7:00pm ET Sunday (winter)
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run generator and post to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          TE_API_KEY: ${{ secrets.TE_API_KEY }}
+        run: python generate_and_post.py
