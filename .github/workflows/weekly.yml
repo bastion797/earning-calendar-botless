@@ -1,9 +1,13 @@
-name: Weekly Earnings Calendar
+name: WSB Weekly Earnings Scraper
 
 on:
   schedule:
-    - cron: "0 0 * * 1"  # 00:00 UTC Monday == 7:00pm ET Sunday (winter)
+    # 00:10 UTC Monday == Sunday evening in US timezones
+    - cron: "10 0 * * 1"
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   run:
@@ -20,9 +24,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run generator and post to Discord
+      - name: Scrape and post
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          TE_API_KEY: ${{ secrets.TE_API_KEY }}
-        run: python generate_and_post.py
+        run: python wsb_scrape_and_post.py
+
+      - name: Commit updated state file (if changed)
+        run: |
+          if git status --porcelain | grep -q "last_earnings_post.txt"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add last_earnings_post.txt
+            git commit -m "Update last earnings post id"
+            git push
+          else
+            echo "No state changes to commit."
+          fi
