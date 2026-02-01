@@ -319,7 +319,7 @@ def main():
     earnings = fetch_earnings_fmp(monday, friday)
     symbols = sorted(list({e["symbol"] for e in earnings}))
     market_caps = fetch_market_caps_fmp(symbols)
-    macro = fetch_macro_events(monday, friday)
+    macro = fetch_macro_events_fmp(monday, friday)
 
     # ===== DEBUG OUTPUT (SAFE) =====
     print(f"Date range: {monday} -> {friday}")
