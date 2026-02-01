@@ -66,39 +66,49 @@ def fetch_earnings_fmp(start: date, end: date):
 
 def fetch_market_caps_fmp(symbols):
     """
-    Pull market caps for only the symbols that have earnings this week.
-    This keeps API calls manageable even on free tiers.
+    Fetch market caps using FMP stable profile endpoint:
+    https://financialmodelingprep.com/stable/profile?symbol=AAPL&apikey=...
+    Returns dict: { "AAPL": 1234567890, ... }
     """
     if not FMP_API_KEY or not symbols:
         return {}
 
     mcap = {}
-    # Try batch quote endpoint first (cheaper); fallback to per-symbol profile if needed.
-    # Batch quote: /api/v3/quote/AAPL,MSFT,...
-    # Caveat: URL length limit. Chunk symbols.
-    chunk_size = 50
-    for i in range(0, len(symbols), chunk_size):
-        chunk = symbols[i:i+chunk_size]
-        url = f"https://financialmodelingprep.com/api/v3/quote/{','.join(chunk)}"
-        params = {"apikey": FMP_API_KEY}
-        r = requests.get(url, params=params, timeout=30)
-        r.raise_for_status()
-        rows = r.json()
-        for row in rows:
-            sym = row.get("symbol")
-            cap = row.get("marketCap")
+    for sym in symbols:
+        try:
+            url = "https://financialmodelingprep.com/stable/profile"
+            params = {"symbol": sym, "apikey": FMP_API_KEY}
+            r = requests.get(url, params=params, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+            r.raise_for_status()
+            rows = r.json()
 
-        cap_val = None
-        if isinstance(cap, (int, float)):
-            cap_val = int(cap)
-        elif isinstance(cap, str):
-            try:
-                cap_val = int(float(cap.replace(",", "")))
-            except ValueError:
-                cap_val = None
+            if not rows:
+                continue
 
-        if sym and cap_val is not None:
-            mcap[sym] = cap_val
+            row = rows[0]
+            cap = row.get("mktCap") or row.get("marketCap") or row.get("market_cap")
+
+            # Normalize cap (int/float/str)
+            cap_val = None
+            if isinstance(cap, (int, float)):
+                cap_val = int(cap)
+            elif isinstance(cap, str):
+                try:
+                    cap_val = int(float(cap.replace(",", "")))
+                except ValueError:
+                    cap_val = None
+
+            if cap_val is not None:
+                mcap[sym] = cap_val
+
+        except requests.HTTPError as e:
+            status = getattr(e.response, "status_code", None)
+            text = (getattr(e.response, "text", "") or "")[:200]
+            print(f"FMP profile failed for {sym}: HTTP {status} | {text}")
+        except Exception as e:
+            print(f"FMP profile failed for {sym}: {e}")
+
+    print(f"Fetched market caps for {len(mcap)}/{len(symbols)} symbols via stable profile")
     return mcap
 
 def fetch_macro_events(start: date, end: date):
