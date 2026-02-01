@@ -268,15 +268,24 @@ def main():
     symbols = sorted(list({e["symbol"] for e in earnings}))
     market_caps = fetch_market_caps_fmp(symbols)
     macro = fetch_macro_events(monday, friday)
-	print(f"Date range: {monday} -> {friday}")
-	print(f"Earnings rows fetched: {len(earnings)}")
-	print(f"Unique symbols: {len(symbols)}")
-	print(f"Market caps fetched: {len(market_caps)}")
-	print(f"Macro events fetched: {len(macro)}")
+
+    # ===== DEBUG OUTPUT (SAFE) =====
+    print(f"Date range: {monday} -> {friday}")
+    print(f"Earnings rows fetched: {len(earnings)}")
+    print(f"Unique symbols: {len(symbols)}")
+    print(f"Market caps fetched: {len(market_caps)}")
+    print(f"Macro events fetched: {len(macro)}")
+    # ===============================
+
     week_days = build_week(monday, friday, earnings, market_caps, macro)
     img = render_calendar_png(week_days, monday, friday)
 
-    msg = f"**Weekly Calendar** ({monday.isoformat()} → {friday.isoformat()})\nEarnings: NYSE+NASDAQ, mcap ≥ $100M\nMacro events included where available."
+    msg = (
+        f"**Weekly Calendar** ({monday} → {friday})\n"
+        "Earnings: NYSE+NASDAQ, mcap ≥ $100M\n"
+        "Macro events included where available"
+    )
+
     post_png_to_discord(img, msg)
 
 if __name__ == "__main__":
