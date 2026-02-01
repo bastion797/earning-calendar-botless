@@ -111,44 +111,70 @@ def fetch_market_caps_fmp(symbols):
     print(f"Fetched market caps for {len(mcap)}/{len(symbols)} symbols via stable profile")
     return mcap
 
-def fetch_macro_events(start: date, end: date):
+def fetch_macro_events_fmp(start: date, end: date):
     """
-    Macro events: use whatever source you like later.
-    For now:
-    - if TE_API_KEY exists, you can wire TradingEconomics calendar
-    - otherwise returns empty
+    Fetch macro events (economic releases) from FMP stable economic calendar.
+    Docs: https://financialmodelingprep.com/stable/economic-calendar
     """
-    if not TE_API_KEY:
+    if not FMP_API_KEY:
+        print("No FMP_API_KEY found; returning empty macro events.")
         return []
 
-    # TradingEconomics example endpoint (you may need to adjust based on your plan/region filters)
-    # Docs: https://tradingeconomics.com/api/calendar.aspx
-    url = "https://api.tradingeconomics.com/calendar"
+    url = "https://financialmodelingprep.com/stable/economic-calendar"
     params = {
-        "c": TE_API_KEY,
-        "d1": start.isoformat(),
-        "d2": end.isoformat(),
-        "format": "json",
-        # You can add "country": "united states" but TE uses specific filters; adjust as needed.
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "apikey": FMP_API_KEY,
     }
-    r = requests.get(url, params=params, timeout=30)
-    r.raise_for_status()
-    data = r.json()
 
-    events = []
+    try:
+        r = requests.get(url, params=params, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"FMP macro request failed: {e}")
+        return []
+
+    # Keep it useful + readable: prioritize US + high-signal events
+    KEYWORDS = (
+        "FOMC", "Fed", "Powell",
+        "CPI", "PCE", "Inflation",
+        "Non Farm", "Nonfarm", "NFP", "Payroll",
+        "Unemployment", "Jobless",
+        "GDP",
+        "Retail Sales",
+        "PMI", "ISM",
+        "Consumer Confidence",
+        "Treasury", "Bond Auction",
+        "Housing Starts", "CPI",
+    )
+
+    out = []
     for row in data:
-        # Fields vary; common ones: Date, Event, Country, Importance
-        dt = row.get("Date") or row.get("date") or ""
-        title = row.get("Event") or row.get("event") or ""
-        country = row.get("Country") or row.get("country") or ""
-        importance = row.get("Importance") or row.get("importance") or ""
-        if not dt or not title:
+        country = (row.get("country") or "").strip()
+        event = (row.get("event") or row.get("name") or row.get("title") or "").strip()
+        category = (row.get("category") or "").strip()
+        dt = (row.get("date") or row.get("datetime") or row.get("publishedDate") or "").strip()
+
+        if not dt:
             continue
-        # dt might be full timestamp; normalize to YYYY-MM-DD
-        day = dt[:10]
-        events.append({"date": day, "title": title, "country": country, "importance": str(importance)})
-    # Optional: filter to US-only + higher importance here
-    return events
+
+        # Most people only care about US macro for this calendar use-case
+        if country and country.lower() not in ("united states", "us", "usa"):
+            continue
+
+        text = f"{event} ({category})" if category and category not in event else event
+        if not any(k.lower() in text.lower() for k in KEYWORDS):
+            continue
+
+        out.append({
+            "date": dt[:10],
+            "time": dt[11:16] if "T" in dt and len(dt) >= 16 else "",  # "HH:MM" if present
+            "label": event or category or "Macro event",
+        })
+
+    print(f"Fetched {len(out)} macro events from FMP economic calendar")
+    return out
 
 # ---------- Build the week structure ----------
 def build_week(monday: date, friday: date, earnings, market_caps, macro_events):
